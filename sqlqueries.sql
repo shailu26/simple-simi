@@ -1,0 +1,6 @@
+CREATE TABLE `jJLQ6BkY7S`.
+`user`(`id`
+  INT NOT NULL AUTO_INCREMENT, `full_name`
+  VARCHAR(50) NOT NULL, `email`
+  VARCHAR(50) UNIQUE, `password`
+  VARCHAR(250) NOT NULL, PRIMARY KEY(`id`)) ENGINE = InnoDB;
