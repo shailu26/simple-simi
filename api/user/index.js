@@ -9,5 +9,12 @@ router
   .get('/getUserDetail/:userId', utils.validateToken, userController.getUserDetail)
   .get('/getCurrentUser', utils.validateToken, userController.getCurrentUser)
   .post('/getPresignedUrl',utils.validateToken, userController.getPresignedUrl)
-
+  .get('/auth/google/success', function(req, res) {
+    console.log(res, req);
+    res.redirect('https://localhost:4200/login?success=true&token=')
+  })
+  .get('/auth/google/failure', function(req, res) {
+    console.log(res);
+    res.redirect('https://localhost:4200/login?sucess=false')
+  })
   module.exports = router;

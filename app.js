@@ -2,12 +2,15 @@ const express = require('express')
 const app = express()
 const cors = require('cors');
 const morgan = require('morgan')
-const bodyParser = require('body-parser')
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const init = require('./routes/routes').init;
 const dotenv = require('dotenv')
 const mongoose = require('mongoose');
-const GoogleStrategy = require('passport-google-oauth2').Strategy;
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const passport = require('passport');
+const User = require('./api/user/user.model');
+
 dotenv.config()
 // Mongo Connection
 const uri = process.env.MONGO_URI;
@@ -31,8 +34,8 @@ process.on('SIGINT', function () {
 app.use(cors(), function (req, res, next) {
   res.header("Access-Control-Allow-Credentials", true);
   res.header("Access-Control-Allow-Origin", '*');
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type,Accept");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "*");
+  res.header("Access-Control-Allow-Methods", "*");
   next();
 });
 
@@ -41,57 +44,78 @@ app.use(bodyParser.json({}))
 app.use(bodyParser.urlencoded({
   extended: false
 }))
+app.use(cookieParser())
+app.use(passport.initialize());
+
+// Add this line below
+const jwt = require('jsonwebtoken')
 
 // calling routes
 init(app);
-app.use(passport.initialize());
-// Configure Passport authenticated session persistence.
-//
-// In order to restore authentication state across HTTP requests, Passport needs
-// to serialize users into and deserialize users out of the session.  In a
-// production-quality application, this would typically be as simple as
-// supplying the user ID when serializing, and querying the user record by ID
-// from the database when deserializing.  However, due to the fact that this
-// example does not have a database, the complete Facebook profile is serialized
-// and deserialized.
-passport.serializeUser(function (user, cb) {
-  cb(null, user);
-});
-
-passport.deserializeUser(function (obj, cb) {
-  cb(null, obj);
-});
 
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: `http://localhost:${process.env.PORT}/auth/google/callback`,
-    passReqToCallback: true
   },
-  function (request, accessToken, refreshToken, profile, done) {
-    return done(null, profile);
-
-    // User.findOrCreate({
-    //   googleId: profile.id
-    // }, function (err, user) {
-    //   return done(err, user);
-    // });
+  (accessToken, refreshToken, profile, cb) => {
+    console.log(accessToken, refreshToken, profile)
+    console.log("GOOGLE BASED OAUTH VALIDATION GETTING CALLED")
+    return cb(null, profile)
   }
 ));
-app.get('/auth/google',
-  passport.authenticate('google', {
-    scope: ['https://www.googleapis.com/auth/plus.login', , 'https://www.googleapis.com/auth/plus.profile.emails.read']
-  }));
 
-app.get('/auth/google/callback',
-  passport.authenticate('google', {
-    successRedirect: '/api/user/auth/google/success',
-    failureRedirect: '/api/user/auth/google/failure'
-  }))
-// app.use(express.static(path.join(__dirname, 'dist')))
-// app.get('*', (req, res) => {
-//     res.sendFile(path.join(__dirname, 'dist/index.html'));
-// });
+passport.serializeUser(function (user, cb) {
+  console.log('I should have jack ')
+  cb(null, user);
+});
+
+passport.deserializeUser(function (obj, cb) {
+  console.log('I wont have jack shit')
+  cb(null, obj);
+});
+
+app.get('/auth/google/', passport.authenticate('google', {
+  scope: ['profile', 'email']
+}));
+
+app.get('/auth/google/callback', passport.authenticate('google'), (req, res) => {
+  console.log('redirected', req.user);
+  const profile = req.user;
+  let user = {
+    id: profile.id,
+    displayName: req.user.displayName,
+    name: req.user.name.givenName,
+    email: req.user._json.email,
+    provider: req.user.provider
+  }
+  console.log(user)
+  User.update({
+    userId: profile.id,
+  }, {
+    $set: {
+      googleId: profile.id,
+      fullName: profile.displayName,
+      email: req.user._json.email
+    }
+  }, {
+    upsert: true
+  }, function (err, data) {
+    const payload = {
+      email: user.email,
+      id: user.id,
+      name: user.displayName
+    };
+    const options = {
+      expiresIn: '2d'
+    };
+    const secret = process.env.JWT_SECRET;
+    const token = jwt.sign(payload, secret, options);
+    res.redirect(`http://localhost:4200/login?success=true&token=${token}`)
+  });
+})
+
+
 app.get('/', (req, res) => {
   res.send('Welcome');
 })

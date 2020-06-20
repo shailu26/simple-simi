@@ -42,6 +42,7 @@ module.exports = {
   },
   'getCurrentUser': async function (req, res) {
     const userId = req.decoded.id;
+    console.log({userId});
     try {
       let user = await User.find({
         userId
@@ -52,6 +53,7 @@ module.exports = {
           model: 'Content'
         }
       }).exec()
+      console.log(user);
       return res.status(201).json({
         success: true,
         message: 'successfully fetched',
